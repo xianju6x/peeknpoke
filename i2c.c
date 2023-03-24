@@ -76,8 +76,7 @@ int write_i2c_device(char bus, int addr, int reg, int size, int value)
 	ret = ioctl(fd,  DEF_I2C_SLAVE_FORCE, addr);
 	if (ret == -1) {
 		printf("Error with the ioctl for address 0x%x\n", addr);
-		close(fd);
-		return -1;
+		goto failed;
 	}
 
 	switch (size) {
@@ -98,8 +97,7 @@ int write_i2c_device(char bus, int addr, int reg, int size, int value)
 #endif
 	default:
 		printf("Error size provided %d\n", size);
-		close(fd);
-		return -1;
+		goto failed;
 	}
 
 	args.read_write = 0;
@@ -109,12 +107,11 @@ int write_i2c_device(char bus, int addr, int reg, int size, int value)
 	ret = ioctl(fd, DEF_I2C_SMBUS, &args);
 	if (ret) {
 		printf("Failed to communicate with Device: error = %d\n", ret);
-		close(fd);
-		return ret;
 	}
+
+failed:
 	close(fd);
 	return ret;
-
 }
 
 int block_write_i2c_device(char bus, int addr, int reg, int size, uint8_t array_size, uint8_t *values)
@@ -137,14 +134,12 @@ int block_write_i2c_device(char bus, int addr, int reg, int size, uint8_t array_
 	ret = ioctl(fd,  DEF_I2C_SLAVE_FORCE, addr);
 	if (ret == -1) {
 		printf("Error with the ioctl for address 0x%x\n", addr);
-		close(fd);
-		return -1;
+		goto failed;
 	}
 
 	if (array_size > (MAX_SMBUS_BLOCK_SIZE + 1)) {
 		printf("Error: data size for block transfer\n");
-		close(fd);
-		return -1;
+		goto failed;
 	}
 	data.block[0] = array_size;
 	memcpy(&data.block[1], values, array_size);
@@ -155,13 +150,12 @@ int block_write_i2c_device(char bus, int addr, int reg, int size, uint8_t array_
 	ret = ioctl(fd, DEF_I2C_SMBUS, &args);
 	if (ret) {
 		printf("Failed to communicate with Device: error = %d\n", ret);
-		close(fd);
-		return ret;
+		goto failed;
 	}
 
+failed:
 	close(fd);
 	return ret;
-
 }
 
 
@@ -192,8 +186,7 @@ int read_i2c_device(char bus, int addr, int reg, int size, int *result)
 	ret = ioctl(fd,  DEF_I2C_SLAVE_FORCE, addr);
 	if (ret == -1) {
 		printf("Error with the ioctl for address 0x%x\n", addr);
-		close(fd);
-		return -1;
+		goto failed;
 	}
 
 	switch (size) {
@@ -206,7 +199,8 @@ int read_i2c_device(char bus, int addr, int reg, int size, int *result)
 
 	default:
 		printf("Error size provided %d\n", size);
-		return -1;
+		ret = -1;
+		goto failed;
 	}
 
 	args.read_write = 1;
@@ -216,7 +210,7 @@ int read_i2c_device(char bus, int addr, int reg, int size, int *result)
 
 	if (ret) {
 		printf("Failed to communicate with Device: error = %d\n", ret);
-		return ret;
+		goto failed;
 	}
 
 	if (size == SMBUS_WORD_DATA)
@@ -225,8 +219,10 @@ int read_i2c_device(char bus, int addr, int reg, int size, int *result)
 		*result = data.byte;
 
 	printf("Result = 0x%x, reg=0x%x ret=0x%x\n", *result, reg, ret);
-	return 0;
 
+failed:
+	close(fd);
+	return ret;
 }
 
 int block_read_i2c_device(char bus, int addr, int reg, int size, uint8_t array_size, uint8_t *result)
@@ -256,8 +252,7 @@ int block_read_i2c_device(char bus, int addr, int reg, int size, uint8_t array_s
 	ret = ioctl(fd,  DEF_I2C_SLAVE_FORCE, addr);
 	if (ret == -1) {
 		printf("Error with the ioctl for address 0x%x\n", addr);
-		close(fd);
-		return -1;
+		goto failed;
 	}
 
 	data.block[0] = array_size - 1;
@@ -268,8 +263,7 @@ int block_read_i2c_device(char bus, int addr, int reg, int size, uint8_t array_s
 	ret = ioctl(fd, DEF_I2C_SMBUS, &args);
 	if (ret) {
 		printf("Failed to communicate with Device: error = %d\n", ret);
-		close(fd);
-		return ret;
+		goto failed;
 	}
 
 	if (size == SMBUS_BLOCK_DATA || size == I2C_SMBUS_BLOCK_DATA) {
@@ -279,6 +273,9 @@ int block_read_i2c_device(char bus, int addr, int reg, int size, uint8_t array_s
 	}
 
 	memcpy(result, &data.block[1], array_size);
-	return 0;
+
+failed:
+	close(fd);
+	return ret;
 
 }
